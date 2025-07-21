@@ -1,0 +1,25 @@
+/* Keep the font import */
+@import url('https://rsms.me/inter/inter.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  font-family: 'Inter', sans-serif;
+}
+
+@supports (font-variation-settings: normal) {
+  html { font-family: 'Inter var', sans-serif; }
+}
+
+/* --- LIGHT MODE CHANGES --- */
+body {
+  /* Change background to a very light gray or white */
+  background-color: #f8f9fa; 
+  /* Change default text to a dark gray */
+  color: #212529; 
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+/* --- END OF LIGHT MODE CHANGES --- */

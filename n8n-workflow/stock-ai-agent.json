@@ -1,0 +1,118 @@
+{
+  "name": "Stock AI Agent (Local - Gemini)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "webhook-stock-query",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "name": "1. Listen for Chatbot Query",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "id": "a9e6e06c-1e6b-4e6f-8a0a-f0f8a3d1c1a1",
+      "webhookId": "your-unique-webhook-id-from-n8n"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/predict",
+        "sendBody": true,
+        "bodyFormat": "json",
+        "jsonParameters": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "ticker",
+              "value": "={{ $json.body.prompt.split(' ').filter(word => word.toUpperCase().includes('.NS')).join('') || $json.body.prompt.split(' ').pop().replace('?','') + '.NS' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "2. Call ML Predict API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3.1,
+      "position": [
+        650,
+        300
+      ],
+      "id": "f5d1e2a5-4b0c-4c6e-8a2a-f5a6b0c2a1a1"
+    },
+    {
+      "parameters": {
+        "text": "=You are StockWise.AI, a helpful and friendly stock market assistant for the Indian market.\n\nA user asked the following question:\n\"{{ $node[\"1. Listen for Chatbot Query\"].json.body.prompt }}\"\n\nMy internal Machine Learning model provided this prediction:\n{{ JSON.stringify($node[\"2. Call ML Predict API\"].json) }}\n\nFormulate a clear, one-paragraph response based **only** on the model's output. Start by stating the recommendation (Buy, Sell, or Hold). If the model returned an error, explain the error to the user in a helpful way (e.g., 'I couldn't find data for that ticker, please check the symbol')."
+      },
+      "name": "3. Format Response with Gemini",
+      "type": "n8n-nodes-base.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ],
+      "id": "b2c3d4e5-6g7h-8i9j-0k1l-m2n3o4p5q6r7",
+      "credentials": {
+        "googleGeminiApi": {
+          "id": "YOUR_GEMINI_CREDENTIAL_ID",
+          "name": "Gemini Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "body": "={{ { \"reply\": $node[\"3. Format Response with Gemini\"].json.candidates[0].content.parts[0].text } }}",
+        "options": {}
+      },
+      "name": "4. Send Final Answer to UI",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        300
+      ],
+      "id": "d7e8f9a0-1b2c-3d4e-5f6g-7h8i9j0k1l2m"
+    }
+  ],
+  "connections": {
+    "1. Listen for Chatbot Query": {
+      "main": [
+        [
+          {
+            "node": "2. Call ML Predict API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Call ML Predict API": {
+      "main": [
+        [
+          {
+            "node": "3. Format Response with Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Format Response with Gemini": {
+      "main": [
+        [
+          {
+            "node": "4. Send Final Answer to UI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "final-local-gemini"
+}
