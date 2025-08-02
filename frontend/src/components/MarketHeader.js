@@ -1,25 +1,30 @@
 import React from 'react';
-import { FiArrowDownRight } from 'react-icons/fi';
+import { FiArrowUpRight, FiArrowDownRight } from 'react-icons/fi';
 
-const MarketHeader = () => {
-   return (
+const IndexDisplay = ({ name, ticker, liveData }) => {
+    const data = liveData[ticker];
+    if (!data) return <div className="font-semibold text-sm text-gray-400">{name} Loading...</div>;
+
+    const isUp = data.change >= 0;
+    const colorClass = isUp ? 'text-green-500' : 'text-red-500';
+
+    return (
+        <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm text-gray-600">{name}</span>
+            <span className={`font-bold ${colorClass}`}>{data.price.toLocaleString('en-IN')}</span>
+            <div className={`flex items-center text-xs ${colorClass}`}>
+                {isUp ? <FiArrowUpRight /> : <FiArrowDownRight />}
+                <span>{data.change > 0 ? '+' : ''}{data.change.toFixed(2)} ({data.percent_change.toFixed(2)}%)</span>
+            </div>
+        </div>
+    );
+};
+
+const MarketHeader = ({ liveData }) => {
+  return (
     <div className="bg-white px-4 py-2 flex items-center gap-6 border-b border-gray-200 flex-shrink-0">
-      <div className="flex items-center gap-2">
-        <span className="font-semibold text-sm text-gray-600">SENSEX</span>
-        <span className="font-bold text-red-600">81,757.73</span>
-        <div className="flex items-center text-xs text-red-600">
-          <FiArrowDownRight />
-          <span>-501.51 (-0.61%)</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="font-semibold text-sm text-gray-600">NIFTY</span>
-        <span className="font-bold text-red-600">24,968.40</span>
-        <div className="flex items-center text-xs text-red-600">
-          <FiArrowDownRight />
-          <span>-143.05 (-0.57%)</span>
-        </div>
-      </div>
+      <IndexDisplay name="NIFTY" ticker="^NSEI" liveData={liveData} />
+      <IndexDisplay name="SENSEX" ticker="^BSESN" liveData={liveData} />
     </div>
   );
 };

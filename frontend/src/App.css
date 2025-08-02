@@ -23,3 +23,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 /* --- END OF LIGHT MODE CHANGES --- */
+
+/* Custom styles for the carousel dots */
+.custom-dots {
+  bottom: -40px;
+}
+
+.custom-dots li button:before {
+  font-size: 12px;
+  color: #D1D5DB; /* gray-300 */
+  opacity: 1;
+}
+
+.custom-dots li.slick-active button:before {
+  color: #3B82F6; /* blue-500 */
+}
