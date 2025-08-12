@@ -1,15 +1,20 @@
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
+  // Email/Password
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  // Google Sign-in
+  GoogleAuthProvider,       // <-- ADD
+  signInWithPopup,          // <-- ADD
+  // Core Functions
   signOut,
   onAuthStateChanged,
-  updatePassword, // <-- ADD
-  reauthenticateWithCredential, // <-- ADD
-  EmailAuthProvider // <-- ADD
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from "firebase/auth";
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore"; // <-- ADD MORE
+import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -26,22 +31,17 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// New function to add a stock to the watchlist
-export const addToWatchlist = (userId, ticker) => {
-  const watchlistRef = collection(db, 'users', userId, 'watchlist');
-  return addDoc(watchlistRef, {
-    ticker: ticker,
-    addedAt: serverTimestamp()
-  });
-};
+// --- ADD GOOGLE PROVIDER ---
+export const googleProvider = new GoogleAuthProvider();
 
-// Export firebase functions for use in components
+// Export all functions for use in components
 export {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithPopup, // <-- EXPORT
   signOut,
   onAuthStateChanged,
-  updatePassword, // <-- EXPORT
-  reauthenticateWithCredential, // <-- EXPORT
-  EmailAuthProvider // <-- EXPORT
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 };

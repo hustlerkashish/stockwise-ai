@@ -1,0 +1,49 @@
+# === Node.js ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+venv/
+
+
+# === Firebase ===
+firebase-debug.log
+firebase-debug.*
+.firebaserc
+.firebase/
+functions/node_modules/
+
+# === React / Frontend ===
+frontend/node_modules/
+frontend/.env
+frontend/build/
+frontend/dist/
+
+# === Logs ===
+*.log
+
+# === macOS / OS Files ===
+.DS_Store
+
+# === VS Code ===
+.vscode/
+
+# === Others ===
+*.swp
+*.tmp
+*.bak
+*~
+
+# === n8n workflow ===
+n8n-workflow/.n8n/
+
+# === Build artifacts ===
+build/
+dist/
+coverage/

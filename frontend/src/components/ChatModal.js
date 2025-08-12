@@ -10,6 +10,9 @@ const ChatModal = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const chatBodyRef = useRef(null);
 
+  const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/stock-analysis';
+
+  // Auto-scroll when new messages arrive
   // Automatically scroll to the bottom when new messages are added
   useEffect(() => {
     if (chatBodyRef.current) {
@@ -21,32 +24,62 @@ const ChatModal = ({ isOpen, onClose }) => {
     e.preventDefault();
     if (!message.trim() || isLoading) return;
 
-    const newHistory = [...chatHistory, { type: 'user', text: message }];
+    const userMessage = message;
+    const newHistory = [...chatHistory, { type: 'user', text: userMessage }];
     setChatHistory(newHistory);
     setMessage('');
     setIsLoading(true);
 
     try {
-      // This is the REAL API call to your n8n conversational workflow
-      // Note: Make sure the n8n workflow is configured to handle general queries
-      const response = await axios.post(process.env.REACT_APP_N8N_WEBHOOK_URL, { prompt: message });
-      setChatHistory([...newHistory, { type: 'bot', text: response.data.reply }]);
+      const response = await axios.post(N8N_WEBHOOK_URL, {
+        message: userMessage,
+        sessionId: 'user-session-123',
+      });
+
+      console.log("Received from n8n:", response.data);
+
+      const responseData = response.data?.[0];
+      let botMessage;
+
+      if (responseData && responseData.output) {
+        const fullText = responseData.output;
+
+        // Extract image URL if available
+        const urlRegex = /(https?:\/\/[^\s]+)/;
+        const urlMatch = fullText.match(urlRegex);
+
+        const imageUrl = urlMatch ? urlMatch[0] : null;
+        const analysisText = fullText.replace(urlRegex, '').trim();
+
+        botMessage = {
+          type: 'bot',
+          text: analysisText,
+          chartUrl: imageUrl,
+        };
+      } else {
+        botMessage = {
+          type: 'bot',
+          text: "Sorry, I received an unexpected response. Please try again."
+        };
+      }
+
+      setChatHistory((prev) => [...prev, botMessage]);
+
     } catch (error) {
       console.error("Chatbot error:", error);
-      setChatHistory([...newHistory, { type: 'bot', text: 'Sorry, I am having trouble connecting to the AI assistant right now.' }]);
+      setChatHistory((prev) => [
+        ...prev,
+        { type: 'bot', text: 'Sorry, I am having trouble connecting to the AI assistant right now.' }
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!isOpen) {
-    return null;
-  }
+  if (!isOpen) return null;
 
   return (
-    // Backdrop
     <div className="fixed inset-0 bg-black bg-opacity-60 z-40 flex items-center justify-center">
-      {/* Modal Container */}
       <div className="bg-[#151a23] border border-gray-700/50 rounded-lg shadow-2xl w-full max-w-lg h-[70vh] flex flex-col mx-4">
         {/* Header */}
         <header className="flex justify-between items-center p-4 border-b border-gray-700/50">
@@ -65,16 +98,20 @@ const ChatModal = ({ isOpen, onClose }) => {
             <div key={index} className={`flex items-end gap-2 ${chat.type === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-xs md:max-w-md p-3 rounded-lg ${chat.type === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-[#2d3748] text-gray-200 rounded-bl-none'}`}>
                 <p className="text-sm">{chat.text}</p>
+                {/* Show image if available */}
+                {chat.chartUrl && (
+                  <img src={chat.chartUrl} alt="Stock Chart" className="mt-2 rounded-lg max-w-full" />
+                )}
               </div>
             </div>
           ))}
           {isLoading && (
             <div className="flex items-end gap-2 justify-start">
-               <div className="max-w-xs md:max-w-md p-3 rounded-lg bg-[#2d3748] text-gray-200 rounded-bl-none">
+              <div className="max-w-xs md:max-w-md p-3 rounded-lg bg-[#2d3748] text-gray-200 rounded-bl-none">
                 <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                 </div>
               </div>
             </div>

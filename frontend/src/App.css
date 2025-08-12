@@ -38,3 +38,47 @@ body {
 .custom-dots li.slick-active button:before {
   color: #3B82F6; /* blue-500 */
 }
+.chat-modal {
+  text-align: center;
+  max-width: 500px;
+  margin: auto;
+}
+
+.chat-window {
+  height: 400px;
+  overflow-y: auto;
+  border: 1px solid #ccc;
+  padding: 10px;
+  background: #f9f9f9;
+}
+
+.message {
+  margin: 5px;
+  padding: 10px;
+  border-radius: 5px;
+  max-width: 80%;
+}
+
+.message.user {
+  text-align: right;
+  background: #d1e7ff;
+  margin-left: auto;
+}
+
+.message.bot {
+  text-align: left;
+  background: #e2e2e2;
+  margin-right: auto;
+}
+
+.message-input {
+  display: flex;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.chat-image {
+  max-width: 100%;
+  margin-top: 5px;
+  border-radius: 5px;
+}
