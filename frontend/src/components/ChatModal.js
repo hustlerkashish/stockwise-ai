@@ -12,8 +12,7 @@ const ChatModal = ({ isOpen, onClose }) => {
 
   const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/stock-analysis';
 
-  // Auto-scroll when new messages arrive
-  // Automatically scroll to the bottom when new messages are added
+  // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     if (chatBodyRef.current) {
       chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
@@ -32,8 +31,8 @@ const ChatModal = ({ isOpen, onClose }) => {
 
     try {
       const response = await axios.post(N8N_WEBHOOK_URL, {
-        message: userMessage,
-        sessionId: 'user-session-123',
+        message: userMessage, // FIXED: was "text"
+        sessionId: 'some-unique-session-id',
       });
 
       console.log("Received from n8n:", response.data);
@@ -44,10 +43,9 @@ const ChatModal = ({ isOpen, onClose }) => {
       if (responseData && responseData.output) {
         const fullText = responseData.output;
 
-        // Extract image URL if available
+        // Extract URL if present
         const urlRegex = /(https?:\/\/[^\s]+)/;
         const urlMatch = fullText.match(urlRegex);
-
         const imageUrl = urlMatch ? urlMatch[0] : null;
         const analysisText = fullText.replace(urlRegex, '').trim();
 
@@ -63,14 +61,15 @@ const ChatModal = ({ isOpen, onClose }) => {
         };
       }
 
-      setChatHistory((prev) => [...prev, botMessage]);
+      setChatHistory((prevHistory) => [...prevHistory, botMessage]);
 
     } catch (error) {
-      console.error("Chatbot error:", error);
-      setChatHistory((prev) => [
-        ...prev,
-        { type: 'bot', text: 'Sorry, I am having trouble connecting to the AI assistant right now.' }
-      ]);
+      console.error('Error sending message to n8n:', error);
+      const errorMessage = {
+        type: 'bot',
+        text: 'Sorry, I am having trouble connecting to my brain right now.',
+      };
+      setChatHistory((prevHistory) => [...prevHistory, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -81,6 +80,7 @@ const ChatModal = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-40 flex items-center justify-center">
       <div className="bg-[#151a23] border border-gray-700/50 rounded-lg shadow-2xl w-full max-w-lg h-[70vh] flex flex-col mx-4">
+        
         {/* Header */}
         <header className="flex justify-between items-center p-4 border-b border-gray-700/50">
           <div className="flex items-center gap-3">
@@ -98,7 +98,6 @@ const ChatModal = ({ isOpen, onClose }) => {
             <div key={index} className={`flex items-end gap-2 ${chat.type === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-xs md:max-w-md p-3 rounded-lg ${chat.type === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-[#2d3748] text-gray-200 rounded-bl-none'}`}>
                 <p className="text-sm">{chat.text}</p>
-                {/* Show image if available */}
                 {chat.chartUrl && (
                   <img src={chat.chartUrl} alt="Stock Chart" className="mt-2 rounded-lg max-w-full" />
                 )}
