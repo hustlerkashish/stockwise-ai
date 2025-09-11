@@ -1,20 +1,28 @@
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
-  // Email/Password
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  // Google Sign-in
-  GoogleAuthProvider,       // <-- ADD
-  signInWithPopup,          // <-- ADD
-  // Core Functions
+  GoogleAuthProvider,
+  signInWithPopup,
   signOut,
   onAuthStateChanged,
   updatePassword,
   reauthenticateWithCredential,
-  EmailAuthProvider
+  EmailAuthProvider,
+  updateProfile // ADD
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  collection, // ADD
+  onSnapshot, // ADD
+  doc, // ADD
+  addDoc, // ADD
+  deleteDoc, // ADD
+  serverTimestamp, // ADD
+  updateDoc, // ADD
+  setDoc // ADD
+} from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -30,18 +38,25 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-
-// --- ADD GOOGLE PROVIDER ---
 export const googleProvider = new GoogleAuthProvider();
 
 // Export all functions for use in components
 export {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signInWithPopup, // <-- EXPORT
+  signInWithPopup,
   signOut,
   onAuthStateChanged,
   updatePassword,
   reauthenticateWithCredential,
-  EmailAuthProvider
+  EmailAuthProvider,
+  updateProfile, // ADD
+  collection, // ADD
+  onSnapshot, // ADD
+  doc, // ADD
+  addDoc, // ADD
+  deleteDoc, // ADD
+  serverTimestamp, // ADD
+  updateDoc, // ADD
+  setDoc // ADD
 };

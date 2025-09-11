@@ -7,7 +7,19 @@ import Profile from './components/Profile';
 import Settings from './components/Settings';
 import Auth from './components/Auth';
 import FloatingChatButton from './components/FloatingChatButton';
+import ScreenerPage from './components/ScreenerPage';
+import HeatmapPage from './components/HeatmapPage'; // 1. Import the new HeatmapPage component
 import './App.css';
+
+// Debug: Log all imported components
+console.log('Header:', Header);
+console.log('Dashboard:', Dashboard);
+console.log('ScreenerPage:', ScreenerPage);
+console.log('Profile:', Profile);
+console.log('Settings:', Settings);
+console.log('Auth:', Auth);
+console.log('FloatingChatButton:', FloatingChatButton);
+console.log('HeatmapPage:', HeatmapPage); // Log for the new component
 
 const useAuth = () => {
     const [user, setUser] = useState(null);
@@ -38,6 +50,9 @@ function App() {
                     <Routes>
                         <Route path="/login" element={user ? <Navigate to="/" /> : <Auth />} />
                         <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+                        <Route path="/screener" element={<PrivateRoute><ScreenerPage /></PrivateRoute>} />
+                        {/* 2. Add the new route for the heatmap page */}
+                        <Route path="/heatmap" element={<PrivateRoute><HeatmapPage /></PrivateRoute>} />
                         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
                         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
                         <Route path="*" element={<Navigate to={user ? "/" : "/login"} />} />

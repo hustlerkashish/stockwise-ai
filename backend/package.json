@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "mout": "^1.2.4",
+    "torch": "^0.2.7",
     "unicorn": "^0.0.1"
   }
 }
