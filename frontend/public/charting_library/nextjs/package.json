@@ -1,0 +1,22 @@
+{
+  "name": "charting-library-nextjs",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "PORT=3001 next start"
+  },
+  "dependencies": {
+    "@types/node": "22.10.9",
+    "@types/react": "19.0.8",
+    "@types/react-dom": "19.0.3",
+    "next": "15.1.6",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "typescript": "5.7.3"
+  }
+}

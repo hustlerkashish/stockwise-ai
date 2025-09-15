@@ -1,0 +1,21 @@
+{
+  "name": "charting-library-react-example",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/react": "19.0.8",
+    "@types/react-dom": "19.0.3",
+    "typescript": "^5.7.3"
+  }
+}

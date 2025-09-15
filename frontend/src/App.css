@@ -82,3 +82,13 @@ body {
   margin-top: 5px;
   border-radius: 5px;
 }
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

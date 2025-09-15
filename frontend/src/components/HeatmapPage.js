@@ -24,7 +24,7 @@ const HeatmapPage = () => {
         };
 
         fetchHeatmapData();
-    }, [selectedIndex]); // Re-fetch when the selected index changes
+    }, [selectedIndex]); 
 
     const formatMarketCap = (cap) => {
         if (!cap) return 'N/A';
@@ -52,16 +52,14 @@ const HeatmapPage = () => {
                 useFillColorAsStroke: true,
                 colorScale: {
                     ranges: [
-                        { from: -Infinity, to: -2, color: '#b91c1c' }, // red-700
-                        { from: -2, to: -0.01, color: '#ef4444' }, // red-500
-                        { from: -0.01, to: 0.01, color: '#4b5563' }, // gray-600
-                        { from: 0.01, to: 2, color: '#22c55e' }, // green-500
-                        { from: 2, to: Infinity, color: '#16a34a' }  // green-600
+                        { from: -Infinity, to: -2, color: '#7f1d1d' }, // Dark Red
+                        { from: -2, to: 0, color: '#ef4444' },       // Light Red
+                        { from: 0, to: 2, color: '#22c55e' },        // Light Green
+                        { from: 2, to: Infinity, color: '#065f46' }  // Dark Green
                     ]
                 }
             }
         },
-        // A fully custom tooltip for a professional look
         tooltip: {
             enabled: true,
             theme: 'dark',
