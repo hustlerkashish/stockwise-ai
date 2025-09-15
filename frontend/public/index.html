@@ -10,13 +10,19 @@
       name="description"
       content="StockWise.AI - AI-powered Stock Market Assistant for Indian Investors"
     />
+    <!--
+      NEW: TRADINGVIEW CHARTING LIBRARY SCRIPT
+      This script loads the advanced charting library from the folder
+      you placed in your /public directory. It fixes the loading errors.
+    -->
+    <script src="%PUBLIC_URL%/charting_library/charting_library.js"></script>
+
     <title>StockWise.AI</title>
   </head>
   <body>
     
 
-    <!-- ✅ START: FIREBASE CONFIG SCRIPT -->
-    <!-- You need to replace the placeholder values below -->
+    <!-- ✅ START: FIREBASE CONFIG SCRIPT (Unchanged) -->
     <script>
       window.__firebase_config = JSON.stringify({
         apiKey: "AIzaSyD0jezyPZZyYj2oDjVkrOqbX3lN7WfeL74",
@@ -34,4 +40,3 @@
     <div id="root"></div>
   </body>
 </html>
-

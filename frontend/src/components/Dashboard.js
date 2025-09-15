@@ -5,6 +5,7 @@ import axios from 'axios';
 import MarketHeader from './MarketHeader';
 import Watchlist from './Watchlist';
 import MainChart from './MainChart';
+import DailyBriefing from './DailyBriefing';
 
 const MARKET_INDEX_TICKERS = ["^NSEI", "^BSESN"];
 
@@ -16,8 +17,7 @@ const Dashboard = () => {
   const [ticker, setTicker] = useState('RELIANCE');
   const [prediction, setPrediction] = useState(null);
   const [isLoadingPrediction, setIsLoadingPrediction] = useState(false);
-  const [liveData, setLiveData] = useState({}); // Initialized as {}
-
+  const [liveData, setLiveData] = useState({});
   const [watchlist, setWatchlist] = useState(() => {
     const savedWatchlist = localStorage.getItem('stockwise_watchlist');
     return savedWatchlist ? JSON.parse(savedWatchlist) : INITIAL_WATCHLIST;
@@ -80,10 +80,12 @@ const Dashboard = () => {
   }, [ticker]);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 font-sans">
+    // UPDATED: Changed main background to a dark color to complement transparent briefing
+    <div className="flex flex-col h-screen bg-[#0c1016] font-sans text-white"> 
       <MarketHeader liveData={liveData} />
       <div className="flex flex-grow overflow-hidden">
-        <div className="w-1/4 max-w-xs min-w-[250px] flex-shrink-0 border-r border-gray-200 bg-white">
+        {/* Watchlist on the left */}
+        <div className="w-72 flex-shrink-0 border-r border-gray-800 bg-[#12181f] overflow-y-auto"> {/* Also darkened watchlist background */}
           <Watchlist
             watchlistTickers={watchlist}
             liveData={liveData}
@@ -93,15 +95,25 @@ const Dashboard = () => {
             removeStock={removeStockFromWatchlist}
           />
         </div>
-        <div className="flex-grow">
-          <MainChart
-            ticker={ticker}
-            prediction={prediction}
-            setPrediction={setPrediction}
-            isLoading={isLoadingPrediction}
-            setIsLoading={setIsLoadingPrediction}
-            liveData={liveData}
-          />
+        
+        {/* Main content area on the right */}
+        <div className="flex-grow flex flex-col overflow-hidden">
+          {/* Daily Briefing component */}
+          <div className="p-4 flex-shrink-0 border-b border-gray-800">
+            <DailyBriefing watchlist={watchlist} />
+          </div>
+
+          {/* MainChart takes the remaining space */}
+          <div className="flex-grow overflow-hidden">
+            <MainChart
+              ticker={ticker}
+              prediction={prediction}
+              setPrediction={setPrediction}
+              isLoading={isLoadingPrediction}
+              setIsLoading={setIsLoadingPrediction}
+              liveData={liveData}
+            />
+          </div>
         </div>
       </div>
     </div>

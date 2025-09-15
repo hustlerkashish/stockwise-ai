@@ -10,6 +10,8 @@ import FloatingChatButton from './components/FloatingChatButton';
 import ScreenerPage from './components/ScreenerPage';
 import HeatmapPage from './components/HeatmapPage'; // 1. Import the new HeatmapPage component
 import './App.css';
+import TickerAnalysisPage from './components/TickerAnalysisPage';
+import PortfolioPage from './components/PortfolioPage'
 
 // Debug: Log all imported components
 console.log('Header:', Header);
@@ -56,6 +58,8 @@ function App() {
                         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
                         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
                         <Route path="*" element={<Navigate to={user ? "/" : "/login"} />} />
+                        <Route path="/analysis/:ticker" element={<PrivateRoute><TickerAnalysisPage /></PrivateRoute>} />
+                        <Route path="/portfolio" element={<PrivateRoute><PortfolioPage /></PrivateRoute>} />
                     </Routes>
                 </main>
                 {user && <FloatingChatButton />}

@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { auth, signOut as firebaseSignOut } from '../api/firebase';
 // 1. Import the FiMap icon
 import { FiTrendingUp, FiLogOut, FiSettings, FiUser, FiFilter, FiGrid, FiMap } from 'react-icons/fi';
+import { FiBriefcase } from 'react-icons/fi'; 
 
 const Header = ({ user }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -41,6 +42,10 @@ const Header = ({ user }) => {
           <NavLink to="/heatmap" className={getLinkClass}>
             <FiMap size={16} />
             Market Heatmap
+          </NavLink>
+          <NavLink to="/portfolio" className={getLinkClass}>
+        <FiBriefcase size={16} />
+        Portfolio
           </NavLink>
         </nav>
       </div>

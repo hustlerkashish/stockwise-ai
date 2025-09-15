@@ -1,11 +1,10 @@
-// /frontend/src/components/MainChart.js
-
-import React from 'react';
-import TradingViewWidget from 'react-tradingview-widget';
+import React, { useState } from 'react';
 import axios from 'axios';
+import TradingViewWidget from 'react-tradingview-widget';
 import { FiTrendingUp, FiTrendingDown, FiPauseCircle, FiArrowUpRight, FiArrowDownRight, FiCpu } from 'react-icons/fi';
 import { Oval } from 'react-loader-spinner';
-import NewsPanel from './NewsPanel'; // 1. Import the new component
+import NewsPanel from './NewsPanel';
+import TradeModal from './TradeModal'; // 1. Import your TradeModal
 
 const MemoizedTradingChart = React.memo(({ ticker }) => {
   return (
@@ -14,7 +13,6 @@ const MemoizedTradingChart = React.memo(({ ticker }) => {
 });
 
 const ChartHeader = ({ ticker, liveData }) => {
-    // (This component is unchanged)
     if (!liveData) return <div className="flex flex-col items-start"><h2 className="font-bold text-black text-2xl">{ticker}</h2><div className="font-semibold text-gray-400">Initializing...</div></div>;
     const liveTickerData = liveData[`${ticker}.NS`] || liveData[`${ticker}.BO`];
     let priceContent;
@@ -26,7 +24,6 @@ const ChartHeader = ({ ticker, liveData }) => {
 };
 
 const PredictionDisplay = ({ isLoading, prediction }) => {
-    // (This component is unchanged)
     if (isLoading) return <div className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg"><Oval color="#4B5563" height={16} width={16} strokeWidth={4} />Analyzing...</div>;
     if (!prediction) return null;
     let icon, colorClass;
@@ -38,8 +35,11 @@ const PredictionDisplay = ({ isLoading, prediction }) => {
 }
 
 const MainChart = ({ ticker, prediction, setPrediction, isLoading, setIsLoading, liveData }) => {
+  // 2. Add state to manage the modal
+  const [modalState, setModalState] = useState({ isOpen: false, tradeType: null });
+  const liveTickerData = liveData[`${ticker}.NS`] || liveData[`${ticker}.BO`];
+
   const handleGetPrediction = async () => {
-    // (This function is unchanged)
     setIsLoading(true); setPrediction(null);
     try {
       const apiTicker = ticker + '.NS'; 
@@ -52,23 +52,43 @@ const MainChart = ({ ticker, prediction, setPrediction, isLoading, setIsLoading,
   };
 
   return (
-    // This parent div allows the whole content area to scroll
     <div className="h-full flex flex-col bg-white overflow-y-auto">
-      {/* Top section: Header and Prediction */}
+        {/* 3. Render the TradeModal */}
+        <TradeModal
+            isOpen={modalState.isOpen}
+            onClose={() => setModalState({ isOpen: false, tradeType: null })}
+            ticker={ticker}
+            currentPrice={liveTickerData?.price || 0}
+            tradeType={modalState.tradeType}
+        />
+      
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <ChartHeader ticker={ticker} liveData={liveData} />
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+            {/* 4. Add the new Buy and Sell buttons */}
+            <button 
+              onClick={() => setModalState({ isOpen: true, tradeType: 'Buy' })} 
+              disabled={!liveTickerData} 
+              className="px-4 py-2 font-semibold text-white bg-green-600 rounded-lg hover:bg-green-500 disabled:bg-gray-400"
+            >
+              Buy
+            </button>
+            <button 
+              onClick={() => setModalState({ isOpen: true, tradeType: 'Sell' })} 
+              disabled={!liveTickerData} 
+              className="px-4 py-2 font-semibold text-white bg-red-600 rounded-lg hover:bg-red-500 disabled:bg-gray-400"
+            >
+              Sell
+            </button>
             <PredictionDisplay isLoading={isLoading} prediction={prediction} />
-            <button onClick={handleGetPrediction} disabled={isLoading} className="flex items-center gap-2 px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"><FiCpu /><span>Get AI Prediction</span></button>
+            <button onClick={handleGetPrediction} disabled={isLoading} className="flex items-center gap-2 px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"><FiCpu /><span>Get AI Prediction</span></button>
         </div>
       </div>
 
-      {/* TradingView Chart */}
       <div className="h-[500px] flex-shrink-0">
         <MemoizedTradingChart ticker={ticker} />
       </div>
 
-      {/* --- 2. ADD THE NEW NEWS PANEL COMPONENT HERE --- */}
       <div className="border-t border-gray-200">
         <NewsPanel ticker={ticker} />
       </div>
