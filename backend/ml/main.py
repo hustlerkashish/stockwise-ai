@@ -478,17 +478,39 @@ def search_stocks(query: str):
 
 @app.post("/prices/batch")
 async def get_batch_prices(data: Tickers):
-    results = {};
+    print(data)
+    results = {}
+
     for ticker_str in data.tickers:
         try:
-            stock = yf.Ticker(ticker_str); hist = stock.history(period="2d", auto_adjust=True)
-            hist = hist.dropna()
-            if not hist.empty and len(hist) > 1:
-                price, prev_close = hist['Close'].iloc[-1], hist['Close'].iloc[-2]
-                change = price - prev_close; percent_change = (change / prev_close) * 100 if prev_close != 0 else 0
-                results[ticker_str] = {"price": round(price, 2), "change": round(change, 2), "percent_change": round(percent_change, 2)}
+            # Fetch last 5 days just to be safe
+            hist = yf.Ticker(ticker_str).history(period="5d", auto_adjust=True)
+            print("HISTORY:", hist)
+
+            if not hist.empty:
+                # Always take the last 2 available closes
+                last_two = hist['Close'].tail(2).tolist()
+
+                if len(last_two) == 2:
+                    prev_close, price = last_two
+                else:
+                    price = last_two[-1]
+                    prev_close = price
+
+                change = price - prev_close
+                percent_change = ((change / prev_close) * 100) if prev_close != 0 else 0
+
+                results[ticker_str] = {
+                    "price": round(price, 2),
+                    "change": round(change, 2),
+                    "percent_change": round(percent_change, 2)
+                }
+
         except Exception as e:
-            print(f"⚠️ Could not fetch price for {ticker_str}: {e}"); continue
+            print(f"⚠ Could not fetch price for {ticker_str}: {e}")
+            continue
+
+    print(results)
     return results
 
 @app.get("/")
