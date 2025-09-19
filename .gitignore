@@ -47,3 +47,6 @@ n8n-workflow/.n8n/
 build/
 dist/
 coverage/
+
+
+backend/ml/serviceAccountKey.json
