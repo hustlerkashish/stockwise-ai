@@ -5,7 +5,7 @@ numpy
 scikit-learn
 xgboost==2.0.3
 yfinance==0.2.38
-pandas-ta==0.3.14b
+pandas-ta
 joblib==1.4.2
 setuptools>=65.0
 Cython>=3.0.8
