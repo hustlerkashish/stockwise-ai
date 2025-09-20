@@ -11,7 +11,7 @@ import pandas_ta as ta
 from dotenv import load_dotenv
 
 # --- ML model imports ---
-from .model import load_model, RSI_PERIOD, EMA_SHORT, EMA_LONG
+from model import load_model, RSI_PERIOD, EMA_SHORT, EMA_LONG
 
 # --- Load env ---
 load_dotenv()
