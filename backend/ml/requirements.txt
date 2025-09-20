@@ -10,3 +10,4 @@ joblib==1.4.2
 setuptools>=65.0
 Cython>=3.0.8
 wheel>=0.40.0
+firebase-admin==6.6.0
