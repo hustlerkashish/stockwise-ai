@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from typing import List, Optional
@@ -8,6 +7,7 @@ from datetime import datetime
 import os, json, requests, pandas as pd, yfinance as yf
 import pandas_ta as ta
 from dotenv import load_dotenv
+import time
 
 # --- ML model imports ---
 from model import load_model, RSI_PERIOD, EMA_SHORT, EMA_LONG
@@ -20,13 +20,13 @@ app = FastAPI(title="StockWise.AI ML Backend")
 # --- CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Change this to your frontend URL
+    allow_origins=["http://localhost:3000"],  # Change to frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Firebase Admin SDK using Render Environment Secret ---
+# --- Firebase Admin SDK ---
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 
@@ -35,27 +35,25 @@ try:
     firebase_service_account = os.getenv("FIREBASE_SERVICE_ACCOUNT")
     if not firebase_admin._apps:
         if not firebase_service_account:
-            raise ValueError("FIREBASE_SERVICE_ACCOUNT environment variable is not set.")
+            raise ValueError("FIREBASE_SERVICE_ACCOUNT environment variable not set.")
         cred_dict = json.loads(firebase_service_account)
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
-        print("✅ Firebase Admin SDK initialized successfully via Render secret.")
+        print("✅ Firebase initialized successfully via Render secret.")
 except Exception as e:
-    print(f"❌ ERROR initializing Firebase Admin SDK: {e}")
+    print(f"❌ Firebase initialization failed: {e}")
     db = None
 
-# --- OAuth2 dependency ---
+# --- OAuth2 ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     if not db:
-        raise HTTPException(status_code=500, detail="Firebase is not initialized on the server.")
+        raise HTTPException(status_code=500, detail="Firebase not initialized.")
     try:
-        decoded_token = auth.verify_id_token(token)
-        return decoded_token
+        return auth.verify_id_token(token)
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid authentication credentials: {e}")
+        raise HTTPException(status_code=401, detail=f"Invalid credentials: {e}")
 
 # --- Load ML model ---
 model = load_model()
@@ -75,34 +73,45 @@ class TradeOrder(BaseModel):
 class BriefingRequest(BaseModel):
     watchlist: List[str]
 
+# --- Helper: Fetch Yahoo Finance history with retries ---
+def fetch_yf_history(ticker, period="5d", retries=3, delay=2):
+    for attempt in range(retries):
+        try:
+            df = yf.Ticker(ticker).history(period=period)
+            if not df.empty:
+                return df
+        except Exception as e:
+            print(f"Attempt {attempt+1} failed for {ticker}: {e}")
+            time.sleep(delay)
+    print(f"Failed to fetch {ticker} after {retries} attempts.")
+    return None
+
 # --- Daily Briefing ---
 @app.post("/daily-briefing")
 async def get_daily_briefing(request: BriefingRequest, current_user: dict = Depends(get_current_user)):
-    user_id = current_user['uid']
-    watchlist = request.watchlist
     briefing_items = []
+    for symbol in request.watchlist:
+        hist = fetch_yf_history(symbol, period="1mo")
+        if hist is None or hist.empty: continue
 
-    if not watchlist:
-        return {"items": []}
-
-    for symbol in watchlist:
+        # Earnings event
         try:
-            stock = yf.Ticker(symbol)
-            calendar = stock.calendar
-            if calendar is not None and isinstance(calendar, pd.DataFrame) and not calendar.empty:
-                earnings_date = calendar.iloc[0,0]
-                if pd.to_datetime(earnings_date).date() > datetime.now().date() and (pd.to_datetime(earnings_date).date() - datetime.now().date()).days <= 7:
-                    briefing_items.append(f"Upcoming Event for {symbol.replace('.NS','')}: Earnings scheduled for {pd.to_datetime(earnings_date).strftime('%B %d, %Y')}.")
+            cal = yf.Ticker(symbol).calendar
+            if cal is not None and not cal.empty:
+                earnings_date = cal.iloc[0,0]
+                if pd.to_datetime(earnings_date).date() > datetime.now().date() and \
+                   (pd.to_datetime(earnings_date).date() - datetime.now().date()).days <= 7:
+                    briefing_items.append(f"Upcoming Event: {symbol.replace('.NS','')} Earnings on {pd.to_datetime(earnings_date).strftime('%B %d, %Y')}.")
+        except: pass
 
-            hist = stock.history(period="1mo")
-            if not hist.empty and len(hist) > 2:
-                avg_volume = hist['Volume'].iloc[-21:-1].mean()
-                latest_volume = hist['Volume'].iloc[-1]
-                if latest_volume > avg_volume * 2:
-                    briefing_items.append(f"Unusual Activity in {symbol.replace('.NS','')}: Today's trading volume is significantly higher than average.")
-        except Exception as e:
-            print(f"⚠️ Could not fetch briefing data for {symbol}: {e}")
-            continue
+        # Unusual volume
+        if len(hist) > 2:
+            avg_vol = hist['Volume'].iloc[-21:-1].mean()
+            latest_vol = hist['Volume'].iloc[-1]
+            if latest_vol > avg_vol * 2:
+                briefing_items.append(f"Unusual Activity: {symbol.replace('.NS','')} trading volume is unusually high today.")
+
+        time.sleep(0.3)
     return {"items": briefing_items}
 
 # --- Portfolio endpoints ---
@@ -113,9 +122,9 @@ async def get_portfolio(current_user: dict = Depends(get_current_user)):
     portfolio_ref = db.collection('portfolios').document(user_id)
     portfolio_doc = portfolio_ref.get()
     if not portfolio_doc.exists:
-        portfolio_data = {'cashBalance': 1000000, 'holdings': {}}
-        portfolio_ref.set(portfolio_data)
-        return portfolio_data
+        data = {'cashBalance': 1000000, 'holdings': {}}
+        portfolio_ref.set(data)
+        return data
     return portfolio_doc.to_dict()
 
 @app.post("/portfolio/buy")
@@ -238,53 +247,54 @@ async def get_market_heatmap_data(index: Optional[str] = "NIFTY 50"):
     if not symbols_to_fetch:
         raise HTTPException(status_code=404, detail="Index not found.")
     heatmap_data = []
-    tickers_str = " ".join(symbols_to_fetch)
-    data = yf.download(tickers=tickers_str, period="2d", group_by='ticker', progress=False)
-    for symbol in symbols_to_fetch:
-        try:
-            info = yf.Ticker(symbol).info
-            market_cap = info.get('marketCap', 0)
-            hist = data[symbol]
-            if hist.empty or len(hist) < 2 or market_cap == 0: continue
-            price, prev_close = hist['Close'].iloc[-1], hist['Close'].iloc[-2]
-            change_percent = ((price - prev_close) / prev_close) * 100
-            heatmap_data.append({'x': symbol.replace('.NS', ''), 'y': market_cap, 'change': round(change_percent, 2)})
-        except Exception as e:
-            print(f"⚠ Could not fetch heatmap data for {symbol}: {e}")
-            continue
+    try:
+        data = yf.download(" ".join(symbols_to_fetch), period="2d", group_by='ticker', progress=False)
+        for symbol in symbols_to_fetch:
+            try:
+                info = yf.Ticker(symbol).info
+                market_cap = info.get('marketCap', 0)
+                hist = data[symbol]
+                if hist.empty or len(hist) < 2 or market_cap == 0: continue
+                price, prev_close = hist['Close'].iloc[-1], hist['Close'].iloc[-2]
+                change_percent = ((price - prev_close) / prev_close) * 100
+                heatmap_data.append({'x': symbol.replace('.NS', ''), 'y': market_cap, 'change': round(change_percent, 2)})
+            except: continue
+    except Exception as e:
+        print(f"Heatmap fetch error: {e}")
     return heatmap_data
 
 # --- Stock news endpoint ---
 @app.get("/stock-news")
 def get_stock_news(ticker: str):
-    if not ticker: raise HTTPException(status_code=400, detail="Ticker symbol is required.")
+    if not ticker: raise HTTPException(status_code=400, detail="Ticker required.")
     NEWS_API_KEY = os.getenv("NEWS_API_KEY")
-    if not NEWS_API_KEY: raise HTTPException(status_code=500, detail="NewsAPI key is not configured on the server.")
+    if not NEWS_API_KEY: raise HTTPException(status_code=500, detail="NewsAPI key missing.")
     try:
         company_name = ticker
         try:
             info = yf.Ticker(f"{ticker}.NS").info
-            if 'longName' in info and info['longName']: company_name = info['longName'].replace("Limited", "").replace("Ltd", "").strip()
-        except Exception: pass
+            company_name = info.get('longName', ticker).replace("Limited","").replace("Ltd","").strip()
+        except: pass
         domains = "economictimes.indiatimes.com,timesofindia.indiatimes.com,thehindu.com,business-standard.com,livemint.com,moneycontrol.com"
-        search_query = f'"{company_name}" OR "{ticker}"'
-        url = f"https://newsapi.org/v2/everything?q={search_query}&domains={domains}&sortBy=publishedAt&apiKey={NEWS_API_KEY}&language=en"
+        url = f"https://newsapi.org/v2/everything?q=\"{company_name}\" OR \"{ticker}\"&domains={domains}&sortBy=publishedAt&apiKey={NEWS_API_KEY}&language=en"
         response = requests.get(url); response.raise_for_status()
         articles = response.json().get('articles', [])
-        if not articles: raise HTTPException(status_code=404, detail=f"No news found for {ticker} via NewsAPI.")
         formatted_news = []
         for article in articles[:12]:
-            if not all(k in article for k in ['title','source','url','publishedAt']) or not article.get('source',{}).get('name'): continue
+            if not all(k in article for k in ['title','source','url','publishedAt']): continue
             try: timestamp = int(datetime.fromisoformat(article['publishedAt'].replace('Z','')).timestamp())
-            except (ValueError, TypeError): continue
-            formatted_news.append({"uuid": article['url'], "title": article['title'], "publisher": article['source']['name'], "link": article['url'], "providerPublishTime": timestamp, "imageUrl": article.get('urlToImage')})
+            except: continue
+            formatted_news.append({
+                "uuid": article['url'], "title": article['title'], 
+                "publisher": article['source']['name'], "link": article['url'], 
+                "providerPublishTime": timestamp, "imageUrl": article.get('urlToImage')
+            })
         return formatted_news
     except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 401: raise HTTPException(status_code=500, detail="NewsAPI key is invalid or unauthorized.")
-        raise HTTPException(status_code=503, detail=f"News service failed with status code {e.response.status_code}")
+        if e.response.status_code == 401: raise HTTPException(status_code=500, detail="NewsAPI key invalid.")
+        raise HTTPException(status_code=503, detail=f"News service failed: {e.response.status_code}")
     except Exception as e:
-        print(f"⚠️ NewsAPI fetch failed for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail="An internal error occurred while fetching news.")
+        raise HTTPException(status_code=500, detail="Internal error while fetching news.")
 
 # --- Search stocks endpoint ---
 @app.get("/search-stocks")
@@ -294,30 +304,37 @@ def search_stocks(query: str):
     headers={'User-Agent':'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers); r.raise_for_status(); data = r.json()
-        results = [{"symbol": i.get('symbol'), "name": i.get('longname', i.get('shortname',''))} for i in data.get('quotes',[]) if i.get('exchange') in ['NSI','BSE']]
+        results = [{"symbol": i.get('symbol'), "name": i.get('longname', i.get('shortname',''))} 
+                   for i in data.get('quotes',[]) if i.get('exchange') in ['NSI','BSE']]
         return results[:7]
-    except requests.exceptions.RequestException as e: raise HTTPException(status_code=503, detail="Failed to connect to search service.")
+    except Exception as e: raise HTTPException(status_code=503, detail="Search service unavailable.")
 
 # --- Batch prices endpoint ---
 @app.post("/prices/batch")
 async def get_batch_prices(data: Tickers):
     results = {}
-    for ticker_str in data.tickers:
+    tickers_str = " ".join(data.tickers)
+    try:
+        yf_data = yf.download(tickers=tickers_str, period="5d", group_by='ticker', progress=False)
+    except: yf_data = None
+
+    for ticker in data.tickers:
         try:
-            hist = yf.Ticker(ticker_str).history(period="5d", auto_adjust=True)
-            if not hist.empty:
+            if yf_data is not None and ticker in yf_data.columns.levels[0]:
+                hist = yf_data[ticker]['Close'].tail(2)
+                prev_close, price = hist if len(hist)==2 else (hist.iloc[-1], hist.iloc[-1])
+            else:
+                hist = fetch_yf_history(ticker)
+                if hist is None or hist.empty: continue
                 last_two = hist['Close'].tail(2).tolist()
-                if len(last_two)==2: prev_close, price = last_two
-                else: price=last_two[-1]; prev_close=price
-                change=price-prev_close
-                percent_change=(change/prev_close*100) if prev_close!=0 else 0
-                results[ticker_str]={"price":round(price,2),"change":round(change,2),"percent_change":round(percent_change,2)}
-        except Exception as e:
-            print(f"⚠ Could not fetch price for {ticker_str}: {e}")
-            continue
+                prev_close, price = last_two if len(last_two)==2 else (last_two[-1], last_two[-1])
+            change = price - prev_close
+            percent_change = (change / prev_close * 100) if prev_close!=0 else 0
+            results[ticker] = {"price": round(price,2), "change": round(change,2), "percent_change": round(percent_change,2)}
+        except: continue
     return results
 
 # --- Root endpoint ---
 @app.get("/")
-def read_root(): 
+def read_root():
     return {"message": "Welcome to the StockWise.AI Prediction API"}
