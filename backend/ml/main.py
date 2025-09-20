@@ -7,7 +7,7 @@ from datetime import datetime
 import os, json, requests, pandas as pd, yfinance as yf
 import pandas_ta as ta
 from dotenv import load_dotenv
-import time
+import time, random
 
 # --- ML model imports ---
 from model import load_model, RSI_PERIOD, EMA_SHORT, EMA_LONG
@@ -20,7 +20,7 @@ app = FastAPI(title="StockWise.AI ML Backend")
 # --- CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Change to frontend URL
+    allow_origins=["http://localhost:3000"],  # Update for frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,25 +73,25 @@ class TradeOrder(BaseModel):
 class BriefingRequest(BaseModel):
     watchlist: List[str]
 
-# --- Helper: Fetch Yahoo Finance history with retries ---
-def fetch_yf_history(ticker, period="5d", retries=5, delay=2):
-    """Fetch ticker history with retry to avoid Yahoo Finance throttling."""
+# --- Helper: Fetch Yahoo Finance history with exponential backoff ---
+def fetch_yf_history(ticker, period="5d", retries=5):
     for attempt in range(retries):
         try:
             df = yf.Ticker(ticker).history(period=period, auto_adjust=True)
             if not df.empty:
                 return df
         except Exception as e:
-            print(f"Attempt {attempt+1} failed for {ticker}: {e}")
-        time.sleep(delay)
-    print(f"Failed to fetch {ticker} after {retries} attempts")
+            wait = (2 ** attempt) + random.uniform(0, 1)
+            print(f"Attempt {attempt+1} failed for {ticker}: {e}. Retrying in {wait:.1f}s...")
+            time.sleep(wait)
+    print(f"❌ Failed to fetch {ticker} after {retries} attempts")
     return None
 
 # --- Daily Briefing ---
 @app.post("/daily-briefing")
 async def get_daily_briefing(request: BriefingRequest, current_user: dict = Depends(get_current_user)):
     briefing_items = []
-    chunk_size = 5  # process 5 tickers at a time to avoid throttling
+    chunk_size = 5
     watchlist = request.watchlist
 
     for i in range(0, len(watchlist), chunk_size):
@@ -101,7 +101,7 @@ async def get_daily_briefing(request: BriefingRequest, current_user: dict = Depe
             if hist is None or hist.empty: 
                 continue
 
-            # --- Earnings events ---
+            # Earnings events
             try:
                 cal = yf.Ticker(symbol).calendar
                 if cal is not None and not cal.empty:
@@ -114,7 +114,7 @@ async def get_daily_briefing(request: BriefingRequest, current_user: dict = Depe
             except Exception as e:
                 print(f"⚠ Error fetching calendar for {symbol}: {e}")
 
-            # --- Unusual volume detection ---
+            # Unusual volume detection
             if len(hist) > 2:
                 avg_vol = hist['Volume'].iloc[-21:-1].mean()
                 latest_vol = hist['Volume'].iloc[-1]
@@ -123,7 +123,7 @@ async def get_daily_briefing(request: BriefingRequest, current_user: dict = Depe
                         f"Unusual Activity: {symbol.replace('.NS','')} trading volume is unusually high today."
                     )
 
-        time.sleep(1)  # small pause between chunks
+        time.sleep(1)
 
     return {"items": briefing_items}
 
@@ -333,7 +333,7 @@ async def get_batch_prices(data: Tickers):
         chunk = tickers[i:i+chunk_size]
         tickers_str = " ".join(chunk)
 
-        # Try batch download first
+        # Batch download first
         try:
             yf_data = yf.download(tickers=tickers_str, period="5d", group_by='ticker', progress=False)
         except Exception as e:
@@ -342,7 +342,7 @@ async def get_batch_prices(data: Tickers):
 
         for ticker in chunk:
             try:
-                if yf_data is not None and ticker in yf_data.columns.levels[0]:
+                if yf_data is not None and ticker in getattr(yf_data.columns, 'levels', [[]])[0]:
                     hist = yf_data[ticker]['Close'].tail(2)
                     prev_close, price = hist.tolist() if len(hist)==2 else (hist.iloc[-1], hist.iloc[-1])
                 else:
@@ -360,7 +360,7 @@ async def get_batch_prices(data: Tickers):
                 print(f"⚠ Failed to process {ticker}: {e}")
                 results[ticker] = {"price": None, "change": None, "percent_change": None}
 
-        time.sleep(1)  # small pause to prevent throttling
+        time.sleep(1)
 
     return results
 
