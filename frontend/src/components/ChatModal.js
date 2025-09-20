@@ -11,7 +11,7 @@ const ChatModal = ({ isOpen, onClose }) => {
   const chatBodyRef = useRef(null);
 
   //const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/stock-analysis';
-  const N8N_WEBHOOK_URL = ' https://6f9f3042ec6d.ngrok-free.app/webhook/stock-analysis';
+  const N8N_WEBHOOK_URL = ' https://5fe16514ccfc.ngrok-free.app/webhook/stock-analysis';
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
