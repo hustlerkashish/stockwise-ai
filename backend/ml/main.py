@@ -4,7 +4,6 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from typing import List, Optional
-from pathlib import Path
 from datetime import datetime
 import os, json, requests, pandas as pd, yfinance as yf
 import pandas_ta as ta
@@ -13,7 +12,7 @@ from dotenv import load_dotenv
 # --- ML model imports ---
 from model import load_model, RSI_PERIOD, EMA_SHORT, EMA_LONG
 
-# --- Load env ---
+# --- Load environment variables ---
 load_dotenv()
 
 app = FastAPI(title="StockWise.AI ML Backend")
@@ -21,30 +20,34 @@ app = FastAPI(title="StockWise.AI ML Backend")
 # --- CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000"],  # Change this to your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Firebase Admin SDK ---
+# --- Firebase Admin SDK using Render Environment Secret ---
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 
 db = None
 try:
-    cred_path = Path(__file__).resolve().parent / "serviceAccountKey.json"
+    firebase_service_account = os.getenv("FIREBASE_SERVICE_ACCOUNT")
     if not firebase_admin._apps:
-        cred = credentials.Certificate(cred_path)
+        if not firebase_service_account:
+            raise ValueError("FIREBASE_SERVICE_ACCOUNT environment variable is not set.")
+        cred_dict = json.loads(firebase_service_account)
+        cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
-        print("✅ Firebase Admin SDK initialized successfully.")
+        print("✅ Firebase Admin SDK initialized successfully via Render secret.")
 except Exception as e:
     print(f"❌ ERROR initializing Firebase Admin SDK: {e}")
     db = None
 
 # --- OAuth2 dependency ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     if not db:
         raise HTTPException(status_code=500, detail="Firebase is not initialized on the server.")
@@ -223,7 +226,7 @@ def predict_stock(data: StockData):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# --- Market heatmap ---
+# --- Market heatmap endpoint ---
 INDEX_SYMBOLS = {
     "NIFTY 50": ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS"],
     "NIFTY BANK": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS"]
@@ -251,23 +254,7 @@ async def get_market_heatmap_data(index: Optional[str] = "NIFTY 50"):
             continue
     return heatmap_data
 
-# --- Screener ---
-@app.post("/screener")
-async def run_screener(filters: dict):
-    try:
-        screener_file = Path(__file__).resolve().parent / "screener_data.json"
-        with open(screener_file, 'r') as f: data = json.load(f)
-        df = pd.DataFrame(data)
-        if filters.get('minMarketCap'): df = df[df['marketCap'] >= int(filters['minMarketCap'])]
-        if filters.get('maxPeRatio'): df = df[(df['peRatio'].notna()) & (df['peRatio'] > 0) & (df['peRatio'] <= int(filters['maxPeRatio']))]
-        if filters.get('minDividendYield'): df = df[df['dividendYield'] >= float(filters['minDividendYield'])]
-        if filters.get('sector'): df = df[df['sector'] == filters['sector']]
-        results = df.sort_values(by='marketCap', ascending=False).head(100)
-        return json.loads(results.to_json(orient='records'))
-    except FileNotFoundError: raise HTTPException(status_code=500, detail="Screener data file not found on server.")
-    except Exception as e: raise HTTPException(status_code=500, detail=f"An error occurred in the screener: {str(e)}")
-
-# --- Stock news ---
+# --- Stock news endpoint ---
 @app.get("/stock-news")
 def get_stock_news(ticker: str):
     if not ticker: raise HTTPException(status_code=400, detail="Ticker symbol is required.")
@@ -299,31 +286,19 @@ def get_stock_news(ticker: str):
         print(f"⚠️ NewsAPI fetch failed for {ticker}: {e}")
         raise HTTPException(status_code=500, detail="An internal error occurred while fetching news.")
 
-# --- Image proxy ---
-@app.get("/image-proxy")
-def image_proxy(url: str):
-    if not url: raise HTTPException(status_code=400, detail="URL parameter is required.")
-    try:
-        with requests.Session() as s:
-            response = s.get(url, stream=True, headers={'User-Agent': 'Mozilla/5.0'})
-            response.raise_for_status()
-            return StreamingResponse(response.iter_content(chunk_size=16384), media_type=response.headers.get('Content-Type'))
-    except requests.exceptions.RequestException as e:
-        print(f"⚠️ Image proxy failed for URL {url}: {e}")
-        raise HTTPException(status_code=502, detail="Failed to fetch image from source.")
-
-# --- Search stocks ---
+# --- Search stocks endpoint ---
 @app.get("/search-stocks")
 def search_stocks(query: str):
     if not query or len(query)<1: return []
-    url = f"https://query1.finance.yahoo.com/v1/finance/search?q={query}"; headers={'User-Agent':'Mozilla/5.0'}
+    url = f"https://query1.finance.yahoo.com/v1/finance/search?q={query}"
+    headers={'User-Agent':'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers); r.raise_for_status(); data = r.json()
         results = [{"symbol": i.get('symbol'), "name": i.get('longname', i.get('shortname',''))} for i in data.get('quotes',[]) if i.get('exchange') in ['NSI','BSE']]
         return results[:7]
     except requests.exceptions.RequestException as e: raise HTTPException(status_code=503, detail="Failed to connect to search service.")
 
-# --- Batch prices ---
+# --- Batch prices endpoint ---
 @app.post("/prices/batch")
 async def get_batch_prices(data: Tickers):
     results = {}
@@ -342,6 +317,7 @@ async def get_batch_prices(data: Tickers):
             continue
     return results
 
-# --- Root ---
+# --- Root endpoint ---
 @app.get("/")
-def read_root(): return {"message": "Welcome to the StockWise.AI Prediction API"}
+def read_root(): 
+    return {"message": "Welcome to the StockWise.AI Prediction API"}
