@@ -74,44 +74,57 @@ class BriefingRequest(BaseModel):
     watchlist: List[str]
 
 # --- Helper: Fetch Yahoo Finance history with retries ---
-def fetch_yf_history(ticker, period="5d", retries=3, delay=2):
+def fetch_yf_history(ticker, period="5d", retries=5, delay=2):
+    """Fetch ticker history with retry to avoid Yahoo Finance throttling."""
     for attempt in range(retries):
         try:
-            df = yf.Ticker(ticker).history(period=period)
+            df = yf.Ticker(ticker).history(period=period, auto_adjust=True)
             if not df.empty:
                 return df
         except Exception as e:
             print(f"Attempt {attempt+1} failed for {ticker}: {e}")
-            time.sleep(delay)
-    print(f"Failed to fetch {ticker} after {retries} attempts.")
+        time.sleep(delay)
+    print(f"Failed to fetch {ticker} after {retries} attempts")
     return None
 
 # --- Daily Briefing ---
 @app.post("/daily-briefing")
 async def get_daily_briefing(request: BriefingRequest, current_user: dict = Depends(get_current_user)):
     briefing_items = []
-    for symbol in request.watchlist:
-        hist = fetch_yf_history(symbol, period="1mo")
-        if hist is None or hist.empty: continue
+    chunk_size = 5  # process 5 tickers at a time to avoid throttling
+    watchlist = request.watchlist
 
-        # Earnings event
-        try:
-            cal = yf.Ticker(symbol).calendar
-            if cal is not None and not cal.empty:
-                earnings_date = cal.iloc[0,0]
-                if pd.to_datetime(earnings_date).date() > datetime.now().date() and \
-                   (pd.to_datetime(earnings_date).date() - datetime.now().date()).days <= 7:
-                    briefing_items.append(f"Upcoming Event: {symbol.replace('.NS','')} Earnings on {pd.to_datetime(earnings_date).strftime('%B %d, %Y')}.")
-        except: pass
+    for i in range(0, len(watchlist), chunk_size):
+        chunk = watchlist[i:i+chunk_size]
+        for symbol in chunk:
+            hist = fetch_yf_history(symbol, period="1mo")
+            if hist is None or hist.empty: 
+                continue
 
-        # Unusual volume
-        if len(hist) > 2:
-            avg_vol = hist['Volume'].iloc[-21:-1].mean()
-            latest_vol = hist['Volume'].iloc[-1]
-            if latest_vol > avg_vol * 2:
-                briefing_items.append(f"Unusual Activity: {symbol.replace('.NS','')} trading volume is unusually high today.")
+            # --- Earnings events ---
+            try:
+                cal = yf.Ticker(symbol).calendar
+                if cal is not None and not cal.empty:
+                    earnings_date = cal.iloc[0,0]
+                    if pd.to_datetime(earnings_date).date() > datetime.now().date() and \
+                       (pd.to_datetime(earnings_date).date() - datetime.now().date()).days <= 7:
+                        briefing_items.append(
+                            f"Upcoming Event: {symbol.replace('.NS','')} Earnings on {pd.to_datetime(earnings_date).strftime('%B %d, %Y')}."
+                        )
+            except Exception as e:
+                print(f"⚠ Error fetching calendar for {symbol}: {e}")
 
-        time.sleep(0.3)
+            # --- Unusual volume detection ---
+            if len(hist) > 2:
+                avg_vol = hist['Volume'].iloc[-21:-1].mean()
+                latest_vol = hist['Volume'].iloc[-1]
+                if latest_vol > avg_vol * 2:
+                    briefing_items.append(
+                        f"Unusual Activity: {symbol.replace('.NS','')} trading volume is unusually high today."
+                    )
+
+        time.sleep(1)  # small pause between chunks
+
     return {"items": briefing_items}
 
 # --- Portfolio endpoints ---
@@ -313,25 +326,42 @@ def search_stocks(query: str):
 @app.post("/prices/batch")
 async def get_batch_prices(data: Tickers):
     results = {}
-    tickers_str = " ".join(data.tickers)
-    try:
-        yf_data = yf.download(tickers=tickers_str, period="5d", group_by='ticker', progress=False)
-    except: yf_data = None
+    tickers = data.tickers
+    chunk_size = 5
 
-    for ticker in data.tickers:
+    for i in range(0, len(tickers), chunk_size):
+        chunk = tickers[i:i+chunk_size]
+        tickers_str = " ".join(chunk)
+
+        # Try batch download first
         try:
-            if yf_data is not None and ticker in yf_data.columns.levels[0]:
-                hist = yf_data[ticker]['Close'].tail(2)
-                prev_close, price = hist if len(hist)==2 else (hist.iloc[-1], hist.iloc[-1])
-            else:
-                hist = fetch_yf_history(ticker)
-                if hist is None or hist.empty: continue
-                last_two = hist['Close'].tail(2).tolist()
-                prev_close, price = last_two if len(last_two)==2 else (last_two[-1], last_two[-1])
-            change = price - prev_close
-            percent_change = (change / prev_close * 100) if prev_close!=0 else 0
-            results[ticker] = {"price": round(price,2), "change": round(change,2), "percent_change": round(percent_change,2)}
-        except: continue
+            yf_data = yf.download(tickers=tickers_str, period="5d", group_by='ticker', progress=False)
+        except Exception as e:
+            print(f"Batch download failed for {chunk}: {e}")
+            yf_data = None
+
+        for ticker in chunk:
+            try:
+                if yf_data is not None and ticker in yf_data.columns.levels[0]:
+                    hist = yf_data[ticker]['Close'].tail(2)
+                    prev_close, price = hist.tolist() if len(hist)==2 else (hist.iloc[-1], hist.iloc[-1])
+                else:
+                    hist = fetch_yf_history(ticker)
+                    if hist is None or hist.empty: 
+                        results[ticker] = {"price": None, "change": None, "percent_change": None}
+                        continue
+                    last_two = hist['Close'].tail(2).tolist()
+                    prev_close, price = last_two if len(last_two)==2 else (last_two[-1], last_two[-1])
+
+                change = price - prev_close
+                percent_change = (change / prev_close * 100) if prev_close != 0 else 0
+                results[ticker] = {"price": round(price,2), "change": round(change,2), "percent_change": round(percent_change,2)}
+            except Exception as e:
+                print(f"⚠ Failed to process {ticker}: {e}")
+                results[ticker] = {"price": None, "change": None, "percent_change": None}
+
+        time.sleep(1)  # small pause to prevent throttling
+
     return results
 
 # --- Root endpoint ---
