@@ -3,7 +3,7 @@ from pydantic import BaseModel
 import yfinance as yf
 import pandas_ta as ta
 import requests
-from .model import load_model, RSI_PERIOD, EMA_SHORT, EMA_LONG
+from model import load_model, RSI_PERIOD, EMA_SHORT, EMA_LONG
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
